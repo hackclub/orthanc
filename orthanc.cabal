@@ -6,7 +6,7 @@ version:             0.1.0.0
 -- synopsis:            
 -- description:         
 homepage:            https://github.com/hackedu/orthanc
-license:             GPL-2
+license:             GPL-3
 license-file:        LICENSE
 author:              Zach Latta
 maintainer:          zach@hackedu.us
@@ -20,6 +20,6 @@ executable orthanc
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.6 && <4.7
+  build-depends:       base >=4.7 && <4.8
   -- hs-source-dirs:      
   default-language:    Haskell2010
