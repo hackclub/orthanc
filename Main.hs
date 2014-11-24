@@ -1,11 +1,14 @@
 {-# LANGUAGE TemplateHaskell, UnicodeSyntax #-}
 
-import System.Environment (getArgs)
-import Control.Monad (forever, forM_, sequence)
 import Control.Distributed.Process
 import Control.Distributed.Process.Backend.SimpleLocalnet
 import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node
+import Control.Monad (forever, forM_, sequence)
+import Data.Maybe
+import qualified Github.Users as Github
+import qualified Github.Data.Definitions as Github
+import System.Environment (getArgs)
 
 replyBack :: (ProcessId, String) -> Process ()
 replyBack (sender, msg) = send sender msg
@@ -14,7 +17,15 @@ logMessage :: String -> Process ()
 logMessage msg = say $ "handling " ++ msg
 
 githubName :: String -> IO String
-githubName username = return username
+githubName username = do
+	r ← Github.userInfoFor username
+	return $ case r of
+		Left e → "Error: " ++ show e
+		Right uinfo → clean $ Github.detailedOwnerName uinfo
+			where
+				clean Nothing = username
+				clean (Just "") = username
+				clean (Just realName) = realName
 
 slave :: (ProcessId, ProcessId) -> Process ()
 slave (master, workQueue) = do
