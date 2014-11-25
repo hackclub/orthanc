@@ -20,8 +20,8 @@ githubName :: String -> IO String
 githubName username = do
 	r ← Github.userInfoFor username
 	return $ case r of
-		Left e → "Error: " ++ show e
-		Right uinfo → clean $ Github.detailedOwnerName uinfo
+		Left e -> "Error: " ++ show e
+		Right uinfo -> clean $ Github.detailedOwnerName uinfo
 			where
 				clean Nothing = username
 				clean (Just "") = username
@@ -53,8 +53,8 @@ master :: [String] -> [NodeId] -> Process [String]
 master usernames slaves = do
 	us <- getSelfPid
 	workQueue <- spawnLocal $ do
-		sequence $ map (\u → expect >>= \them→send them u) usernames
-		forever $ expect >>= \pid → send pid ()
+		sequence $ map (\u -> expect >>= \them->send them u) usernames
+		forever $ expect >>= \pid -> send pid ()
 
 	forM_ slaves $ \nid -> spawn nid ($(mkClosure 'slave) (us, workQueue))
 	accStrings $ length usernames
