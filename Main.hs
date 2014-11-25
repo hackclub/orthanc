@@ -67,10 +67,10 @@ main = do
 	args <- getArgs
 
 	case args of
-		["master", host, port, n] -> do
+		("master" : host : port : usernames) -> do
 			backend <- initializeBackend host port rtable
 			startMaster backend $ \slaves -> do
-				result <- master (read n) slaves
+				result <- master usernames slaves
 				liftIO $ print result
 
 		["slave", host, port] -> do
