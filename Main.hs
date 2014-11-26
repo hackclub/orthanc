@@ -77,4 +77,4 @@ main = do
 			backend <- initializeBackend host port rtable
 			startSlave backend
 
-		_ -> putStrLn "Get your shit together"
+		_ -> putStrLn "Bad args"
