@@ -18,7 +18,7 @@ logMessage msg = say $ "handling " ++ msg
 
 githubName :: String -> IO String
 githubName username = do
-	r ← Github.userInfoFor username
+	r <- Github.userInfoFor username
 	return $ case r of
 		Left e -> "Error: " ++ show e
 		Right uinfo -> clean $ Github.detailedOwnerName uinfo
