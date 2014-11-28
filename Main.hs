@@ -27,6 +27,16 @@ githubName username = do
 				clean (Just "") = username
 				clean (Just realName) = realName
 
+data GithubProfile = GithubProfile { name :: Maybe String
+	} deriving (Show)
+
+analyzeGithub :: String -> IO (Either Github.Error GithubProfile)
+analyzeGithub username = do
+	r <- Github.userInfoFor username
+	return $ case r of
+		Left e -> Left e
+		Right uinfo -> Right GithubProfile {name=Github.detailedOwnerName uinfo}
+
 slave :: (ProcessId, ProcessId) -> Process ()
 slave (master, workQueue) = do
 		us <- getSelfPid
