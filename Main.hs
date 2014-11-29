@@ -34,8 +34,8 @@ instance Binary GithubProfile
 
 analyzeGithub :: String -> IO (Either String GithubProfile)
 analyzeGithub username = do
-	r <- Github.userInfoFor username
-	return $ case r of
+	possibleUserInfo <- Github.userInfoFor username
+	return $ case possibleUserInfo of
 		Left e -> Left $ show e
 		Right uinfo -> Right $ GithubProfile {
 			Main.id=Github.detailedOwnerId uinfo
