@@ -6,10 +6,13 @@ import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node
 import Control.Monad (forever, forM_, sequence)
 import Data.Binary
+import Data.Either
+import Data.Either.Unwrap (fromLeft, fromRight)
 import Data.Maybe
 import Data.Typeable
 import GHC.Generics (Generic)
 import qualified Github.Users as Github
+import qualified Github.Users.Followers as Github
 import qualified Github.Data.Definitions as Github
 import System.Environment (getArgs)
 
@@ -20,8 +23,8 @@ data GithubProfile = GithubProfile {
 	,name :: Maybe String
 	,company :: Maybe String
 	,publicGists :: Int
-	,followers :: Int
-	,following :: Int
+	,followers :: [Int]
+	,following :: [Int]
 	,hireable :: Maybe Bool
 	,blog :: Maybe String
 	,publicRepos :: Int
@@ -34,25 +37,30 @@ instance Binary GithubProfile
 
 analyzeGithub :: String -> IO (Either String GithubProfile)
 analyzeGithub username = do
+	possibleFollowers <- Github.usersFollowing username
+	possibleFollowing <- Github.usersFollowedBy username
 	possibleUserInfo <- Github.userInfoFor username
-	return $ case possibleUserInfo of
-		Left e -> Left $ show e
-		Right uinfo -> Right $ GithubProfile {
-			Main.id=Github.detailedOwnerId uinfo
-			,login=Github.detailedOwnerLogin uinfo
-			,email=Github.detailedOwnerEmail uinfo
-			,name=Github.detailedOwnerName uinfo
-			,company=Github.detailedOwnerCompany uinfo
-			,publicGists=Github.detailedOwnerPublicGists uinfo
-			,followers=Github.detailedOwnerFollowers uinfo
-			,following=Github.detailedOwnerFollowing uinfo
-			,hireable=Github.detailedOwnerHireable uinfo
-			,blog=Github.detailedOwnerBlog uinfo
-			,publicRepos=Github.detailedOwnerPublicRepos uinfo
-			,location=Github.detailedOwnerLocation uinfo
-			,url=Github.detailedOwnerHtmlUrl uinfo
-			,avatarUrl=Github.detailedOwnerAvatarUrl uinfo
-			}
+
+	if (isLeft possibleFollowers) then return (Left $ show $ fromLeft possibleFollowers) else do
+		if (isLeft possibleFollowing) then return (Left $ show $ fromLeft possibleFollowing) else do
+			return $ case possibleUserInfo of
+				Left e -> Left $ show e
+				Right uinfo -> Right $ GithubProfile {
+					Main.id=Github.detailedOwnerId uinfo
+					,login=Github.detailedOwnerLogin uinfo
+					,email=Github.detailedOwnerEmail uinfo
+					,name=Github.detailedOwnerName uinfo
+					,company=Github.detailedOwnerCompany uinfo
+					,publicGists=Github.detailedOwnerPublicGists uinfo
+					,followers=map Github.githubOwnerId $ fromRight possibleFollowers
+					,following=map Github.githubOwnerId $ fromRight possibleFollowing
+					,hireable=Github.detailedOwnerHireable uinfo
+					,blog=Github.detailedOwnerBlog uinfo
+					,publicRepos=Github.detailedOwnerPublicRepos uinfo
+					,location=Github.detailedOwnerLocation uinfo
+					,url=Github.detailedOwnerHtmlUrl uinfo
+					,avatarUrl=Github.detailedOwnerAvatarUrl uinfo
+					}
 
 slave :: (ProcessId, ProcessId) -> Process ()
 slave (master, workQueue) = do

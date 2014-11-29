@@ -25,6 +25,7 @@ executable orthanc
                        distributed-process,
                        distributed-process-simplelocalnet,
                        template-haskell,
-                       binary
+                       binary,
+                       either-unwrap
   -- hs-source-dirs:      
   default-language:    Haskell2010
