@@ -24,7 +24,7 @@ analyzeGithub :: String -> IO (Either String GithubProfile)
 analyzeGithub username = do
 	r <- Github.userInfoFor username
 	return $ case r of
-		Left e -> Left $ "Error"
+		Left e -> Left $ show e
 		Right uinfo -> Right $ GithubProfile {username=username
 							, name=Github.detailedOwnerName uinfo
 							, email=Github.detailedOwnerEmail uinfo}
