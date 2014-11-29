@@ -1,14 +1,13 @@
 {-# LANGUAGE TemplateHaskell, DeriveGeneric, DeriveDataTypeable, UnicodeSyntax #-}
 
+import Control.Arrow (left)
+import Control.Applicative (liftA3)
 import Control.Distributed.Process
 import Control.Distributed.Process.Backend.SimpleLocalnet
 import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node
 import Control.Monad (forever, forM_, sequence)
 import Data.Binary
-import Data.Either
-import Data.Either.Unwrap (fromLeft, fromRight)
-import Data.Maybe
 import Data.Typeable
 import GHC.Generics (Generic)
 import qualified Github.Users as Github
@@ -35,32 +34,33 @@ data GithubProfile = GithubProfile {
 
 instance Binary GithubProfile
 
+makeProfile :: [Github.GithubOwner] -> [Github.GithubOwner] -> Github.DetailedOwner -> GithubProfile
+makeProfile followers following userInfo = GithubProfile {
+			Main.id=Github.detailedOwnerId userInfo
+			,login=Github.detailedOwnerLogin userInfo
+			,email=Github.detailedOwnerEmail userInfo
+			,name=Github.detailedOwnerName userInfo
+			,company=Github.detailedOwnerCompany userInfo
+			,publicGists=Github.detailedOwnerPublicGists userInfo
+			,followers=map Github.githubOwnerId followers
+			,following=map Github.githubOwnerId following
+			,hireable=Github.detailedOwnerHireable userInfo
+			,blog=Github.detailedOwnerBlog userInfo
+			,publicRepos=Github.detailedOwnerPublicRepos userInfo
+			,location=Github.detailedOwnerLocation userInfo
+			,url=Github.detailedOwnerHtmlUrl userInfo
+			,avatarUrl=Github.detailedOwnerAvatarUrl userInfo
+			}
+
 analyzeGithub :: String -> IO (Either String GithubProfile)
 analyzeGithub username = do
 	possibleFollowers <- Github.usersFollowing username
 	possibleFollowing <- Github.usersFollowedBy username
 	possibleUserInfo <- Github.userInfoFor username
 
-	if (isLeft possibleFollowers) then return (Left $ show $ fromLeft possibleFollowers) else do
-		if (isLeft possibleFollowing) then return (Left $ show $ fromLeft possibleFollowing) else do
-			return $ case possibleUserInfo of
-				Left e -> Left $ show e
-				Right uinfo -> Right $ GithubProfile {
-					Main.id=Github.detailedOwnerId uinfo
-					,login=Github.detailedOwnerLogin uinfo
-					,email=Github.detailedOwnerEmail uinfo
-					,name=Github.detailedOwnerName uinfo
-					,company=Github.detailedOwnerCompany uinfo
-					,publicGists=Github.detailedOwnerPublicGists uinfo
-					,followers=map Github.githubOwnerId $ fromRight possibleFollowers
-					,following=map Github.githubOwnerId $ fromRight possibleFollowing
-					,hireable=Github.detailedOwnerHireable uinfo
-					,blog=Github.detailedOwnerBlog uinfo
-					,publicRepos=Github.detailedOwnerPublicRepos uinfo
-					,location=Github.detailedOwnerLocation uinfo
-					,url=Github.detailedOwnerHtmlUrl uinfo
-					,avatarUrl=Github.detailedOwnerAvatarUrl uinfo
-					}
+	let profile = liftA3 makeProfile possibleFollowers possibleFollowing possibleUserInfo
+
+	return $ left show profile
 
 slave :: (ProcessId, ProcessId) -> Process ()
 slave (master, workQueue) = do
