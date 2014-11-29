@@ -13,12 +13,6 @@ import qualified Github.Users as Github
 import qualified Github.Data.Definitions as Github
 import System.Environment (getArgs)
 
-replyBack :: (ProcessId, String) -> Process ()
-replyBack (sender, msg) = send sender msg
-
-logMessage :: String -> Process ()
-logMessage msg = say $ "handling " ++ msg
-
 data GithubProfile = GithubProfile { username :: String
 					, name :: Maybe String
 					, email :: Maybe String
