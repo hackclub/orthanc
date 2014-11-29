@@ -13,9 +13,21 @@ import qualified Github.Users as Github
 import qualified Github.Data.Definitions as Github
 import System.Environment (getArgs)
 
-data GithubProfile = GithubProfile { username :: String
-					, name :: Maybe String
-					, email :: Maybe String
+data GithubProfile = GithubProfile {
+	id :: Int
+	,login :: String
+	,email :: Maybe String
+	,name :: Maybe String
+	,company :: Maybe String
+	,publicGists :: Int
+	,followers :: Int
+	,following :: Int
+	,hireable :: Maybe Bool
+	,blog :: Maybe String
+	,publicRepos :: Int
+	,location :: Maybe String
+	,url :: String
+	,avatarUrl :: String
 	} deriving (Show, Generic, Typeable)
 
 instance Binary GithubProfile
@@ -25,9 +37,22 @@ analyzeGithub username = do
 	r <- Github.userInfoFor username
 	return $ case r of
 		Left e -> Left $ show e
-		Right uinfo -> Right $ GithubProfile {username=username
-							, name=Github.detailedOwnerName uinfo
-							, email=Github.detailedOwnerEmail uinfo}
+		Right uinfo -> Right $ GithubProfile {
+			Main.id=Github.detailedOwnerId uinfo
+			,login=Github.detailedOwnerLogin uinfo
+			,email=Github.detailedOwnerEmail uinfo
+			,name=Github.detailedOwnerName uinfo
+			,company=Github.detailedOwnerCompany uinfo
+			,publicGists=Github.detailedOwnerPublicGists uinfo
+			,followers=Github.detailedOwnerFollowers uinfo
+			,following=Github.detailedOwnerFollowing uinfo
+			,hireable=Github.detailedOwnerHireable uinfo
+			,blog=Github.detailedOwnerBlog uinfo
+			,publicRepos=Github.detailedOwnerPublicRepos uinfo
+			,location=Github.detailedOwnerLocation uinfo
+			,url=Github.detailedOwnerHtmlUrl uinfo
+			,avatarUrl=Github.detailedOwnerAvatarUrl uinfo
+			}
 
 slave :: (ProcessId, ProcessId) -> Process ()
 slave (master, workQueue) = do
