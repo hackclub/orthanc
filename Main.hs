@@ -2,19 +2,32 @@
   UnicodeSyntax #-}
 
 import Control.Arrow (left)
-import Control.Applicative (liftA3)
+import Control.Applicative ((<*>))
 import Control.Distributed.Process
 import Control.Distributed.Process.Backend.SimpleLocalnet
 import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node
 import Control.Monad (forever, forM_, sequence)
 import Data.Binary
+import Data.Functor ((<$>))
 import Data.Typeable
 import GHC.Generics (Generic)
+import qualified Github.Repos as Github
 import qualified Github.Users as Github
 import qualified Github.Users.Followers as Github
 import qualified Github.Data.Definitions as Github
 import System.Environment (getArgs)
+
+data GithubRepo = GithubRepo {
+  repoId :: Int
+  ,repoUrl :: String
+  ,repoHomepage :: Maybe String
+  ,repoSize :: Maybe Int
+  ,repoStars :: Maybe Int
+  ,repoLanguage :: Maybe String
+  } deriving (Show, Generic, Typeable)
+
+instance Binary GithubRepo
 
 data GithubProfile = GithubProfile {
   id :: Int
@@ -27,7 +40,7 @@ data GithubProfile = GithubProfile {
   ,following :: [Int]
   ,hireable :: Maybe Bool
   ,blog :: Maybe String
-  ,publicRepos :: Int
+  ,repos :: [GithubRepo]
   ,location :: Maybe String
   ,url :: String
   ,avatarUrl :: String
@@ -35,9 +48,19 @@ data GithubProfile = GithubProfile {
 
 instance Binary GithubProfile
 
-makeProfile :: [Github.GithubOwner] -> [Github.GithubOwner] ->
+convertRepo :: Github.Repo -> GithubRepo
+convertRepo repo = GithubRepo{
+  repoId=Github.repoId repo
+  ,repoUrl=Github.repoHtmlUrl repo
+  ,repoHomepage=Github.repoHomepage repo
+  ,repoSize=Github.repoSize repo
+  ,repoStars=Github.repoWatchers repo
+  ,repoLanguage=Github.repoLanguage repo
+  }
+
+makeProfile :: [Github.Repo] -> [Github.GithubOwner] -> [Github.GithubOwner] ->
   Github.DetailedOwner -> GithubProfile
-makeProfile followers following userInfo = GithubProfile {
+makeProfile repos followers following userInfo = GithubProfile {
       Main.id=Github.detailedOwnerId userInfo
       ,login=Github.detailedOwnerLogin userInfo
       ,email=Github.detailedOwnerEmail userInfo
@@ -48,7 +71,7 @@ makeProfile followers following userInfo = GithubProfile {
       ,following=map Github.githubOwnerId following
       ,hireable=Github.detailedOwnerHireable userInfo
       ,blog=Github.detailedOwnerBlog userInfo
-      ,publicRepos=Github.detailedOwnerPublicRepos userInfo
+      ,repos=map convertRepo repos
       ,location=Github.detailedOwnerLocation userInfo
       ,url=Github.detailedOwnerHtmlUrl userInfo
       ,avatarUrl=Github.detailedOwnerAvatarUrl userInfo
@@ -56,12 +79,13 @@ makeProfile followers following userInfo = GithubProfile {
 
 analyzeGithub :: String -> IO (Either String GithubProfile)
 analyzeGithub username = do
+  possibleRepos <- Github.userRepos username Github.Owner
   possibleFollowers <- Github.usersFollowing username
   possibleFollowing <- Github.usersFollowedBy username
   possibleUserInfo <- Github.userInfoFor username
 
-  let profile = liftA3 makeProfile possibleFollowers possibleFollowing
-                  possibleUserInfo
+  let profile = makeProfile <$> possibleRepos <*> possibleFollowers
+                  <*> possibleFollowing <*> possibleUserInfo
 
   return $ left show profile
 
