@@ -1,124 +1,38 @@
-{-# LANGUAGE TemplateHaskell, DeriveGeneric, DeriveDataTypeable,
-  UnicodeSyntax #-}
+{-# LANGUAGE TemplateHaskell, DeriveGeneric, DeriveDataTypeable #-}
 
-import Control.Arrow (left)
-import Control.Applicative ((<*>))
 import Control.Distributed.Process
 import Control.Distributed.Process.Backend.SimpleLocalnet
 import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node
-import Control.Monad (forever, forM_, sequence)
-import Data.Binary
-import Data.Functor ((<$>))
-import Data.Typeable
-import GHC.Generics (Generic)
-import qualified Github.Repos as Github
-import qualified Github.Users as Github
-import qualified Github.Users.Followers as Github
-import qualified Github.Data.Definitions as Github
+import Control.Monad (forever, forM_)
 import System.Environment (getArgs)
-
-data GithubRepo = GithubRepo {
-  repoId :: Int
-  ,repoUrl :: String
-  ,repoHomepage :: Maybe String
-  ,repoSize :: Maybe Int
-  ,repoStars :: Maybe Int
-  ,repoLanguage :: Maybe String
-  } deriving (Show, Generic, Typeable)
-
-instance Binary GithubRepo
-
-data GithubProfile = GithubProfile {
-  id :: Int
-  ,login :: String
-  ,email :: Maybe String
-  ,name :: Maybe String
-  ,company :: Maybe String
-  ,publicGists :: Int
-  ,followers :: [Int]
-  ,following :: [Int]
-  ,hireable :: Maybe Bool
-  ,blog :: Maybe String
-  ,repos :: [GithubRepo]
-  ,location :: Maybe String
-  ,url :: String
-  ,avatarUrl :: String
-  } deriving (Show, Generic, Typeable)
-
-instance Binary GithubProfile
-
-convertRepo :: Github.Repo -> GithubRepo
-convertRepo repo = GithubRepo{
-  repoId=Github.repoId repo
-  ,repoUrl=Github.repoHtmlUrl repo
-  ,repoHomepage=Github.repoHomepage repo
-  ,repoSize=Github.repoSize repo
-  ,repoStars=Github.repoWatchers repo
-  ,repoLanguage=Github.repoLanguage repo
-  }
-
-makeProfile :: [Github.Repo] -> [Github.GithubOwner] -> [Github.GithubOwner] ->
-  Github.DetailedOwner -> GithubProfile
-makeProfile repos followers following userInfo = GithubProfile {
-      Main.id=Github.detailedOwnerId userInfo
-      ,login=Github.detailedOwnerLogin userInfo
-      ,email=Github.detailedOwnerEmail userInfo
-      ,name=Github.detailedOwnerName userInfo
-      ,company=Github.detailedOwnerCompany userInfo
-      ,publicGists=Github.detailedOwnerPublicGists userInfo
-      ,followers=map Github.githubOwnerId followers
-      ,following=map Github.githubOwnerId following
-      ,hireable=Github.detailedOwnerHireable userInfo
-      ,blog=Github.detailedOwnerBlog userInfo
-      ,repos=map convertRepo repos
-      ,location=Github.detailedOwnerLocation userInfo
-      ,url=Github.detailedOwnerHtmlUrl userInfo
-      ,avatarUrl=Github.detailedOwnerAvatarUrl userInfo
-      }
-
-analyzeGithub :: String -> IO (Either String GithubProfile)
-analyzeGithub username = do
-  possibleRepos <- Github.userRepos username Github.Owner
-  possibleFollowers <- Github.usersFollowing username
-  possibleFollowing <- Github.usersFollowedBy username
-  possibleUserInfo <- Github.userInfoFor username
-
-  let profile = makeProfile <$> possibleRepos <*> possibleFollowers
-                  <*> possibleFollowing <*> possibleUserInfo
-
-  return $ left show profile
+import Repos hiding (main)
 
 slave :: (ProcessId, ProcessId) -> Process ()
-slave (master, workQueue) = do
-    us <- getSelfPid
-    go us
-  where
-    go us = do
-      send workQueue us
-      receiveWait
-        [ match $ \nm -> liftIO(analyzeGithub nm) >>= send master >> go us
-        , match $ \() -> return ()
-        ]
+slave (master, workQueue) = do us <- getSelfPid
+                               go us
+  where go us = do send workQueue us
+                   receiveWait
+                     [ match $ \nm -> liftIO(fetchGHProfile nm) >>= send master >> go us
+                     , match $ \() -> return ()
+                     ]
 
 remotable ['slave]
 
-accProfiles :: Int -> Process [Either String GithubProfile]
+accProfiles :: Int -> Process [Either String GHProfile]
 accProfiles = go []
   where
-    go :: [Either String GithubProfile] -> Int ->
-      Process [Either String GithubProfile]
+    go :: [Either String GHProfile] -> Int -> Process [Either String GHProfile]
     go acc 0 = return $ reverse acc
-    go acc n = do
-      m <- expect
-      go (m : acc) (n - 1)
+    go acc n = do m <- expect
+                  go (m:acc) (n-1)
 
-master :: [String] -> [NodeId] -> Process [Either String GithubProfile]
+master :: [String] -> [NodeId] -> Process [Either String GHProfile]
 master usernames slaves = do
   us <- getSelfPid
   workQueue <- spawnLocal $ do
-    sequence $ map (\u -> expect >>= \them->send them u) usernames
-    forever $ expect >>= \pid -> send pid ()
+    forM_ usernames $ \u -> expect >>= flip send u
+    forever $ expect >>= flip send ()
 
   forM_ slaves $ \nid -> spawn nid ($(mkClosure 'slave) (us, workQueue))
   accProfiles $ length usernames
@@ -129,9 +43,8 @@ rtable = __remoteTable initRemoteTable
 main :: IO ()
 main = do
   args <- getArgs
-
   case args of
-    ("master" : host : port : usernames) -> do
+    "master":host:port:usernames -> do
       backend <- initializeBackend host port rtable
       startMaster backend $ \slaves -> do
         result <- master usernames slaves
